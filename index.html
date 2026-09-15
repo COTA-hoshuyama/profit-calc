@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>粗利・在庫シミュレーター</title>
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-sub: #64748b;
+      --border: #e2e8f0;
+      --primary: #2563eb;
+      --primary-light: #eff6ff;
+      --primary-border: #bfdbfe;
+      --emerald: #059669;
+      --emerald-light: #ecfdf5;
+      --emerald-border: #a7f3d0;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      padding: 12px 12px 40px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin: 8px 0 14px;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    /* メモリ操作バー */
+    .memory-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .mem-btn {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--text-main);
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      transition: all 0.15s ease;
+    }
+
+    .mem-btn:active {
+      transform: scale(0.96);
+      background: #f8fafc;
+    }
+
+    .mem-btn.danger {
+      color: #dc2626;
+      border-color: #fecaca;
+    }
+
+    .mem-btn.danger:active {
+      background: #fef2f2;
+    }
+
+    /* 通知トースト */
+    #toast {
+      visibility: hidden;
+      min-width: 180px;
+      background-color: rgba(15, 23, 42, 0.9);
+      color: #fff;
+      text-align: center;
+      border-radius: 24px;
+      padding: 8px 16px;
+      position: fixed;
+      z-index: 1000;
+      left: 50%;
+      top: 20px;
+      transform: translateX(-50%);
+      font-size: 0.82rem;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.25s, visibility 0.25s;
+    }
+
+    #toast.show {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+      border: 1px solid var(--border);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text-main);
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
+    .badge-green { background: #d1fae5; color: #047857; }
+
+    .input-field {
+      margin-bottom: 12px;
+    }
+
+    .input-field:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      margin-bottom: 5px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      height: 48px;
+      padding: 0 38px 0 14px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-main);
+      background-color: #f8fafc;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    input[type="text"]:focus, input[type="number"]:focus {
+      background-color: #ffffff;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .unit {
+      position: absolute;
+      right: 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      pointer-events: none;
+    }
+
+    .stepper-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stepper-btn {
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35rem;
+      font-weight: 700;
+      background-color: #ffffff;
+      color: var(--primary);
+      border: 1.5px solid var(--primary-border);
+      border-radius: 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+
+    .stepper-btn:active {
+      background-color: var(--primary-light);
+      transform: scale(0.93);
+    }
+
+    .stepper-group .input-wrapper {
+      flex: 1;
+    }
+
+    .stepper-group input[type="number"] {
+      text-align: center;
+      padding: 0 28px 0 10px;
+    }
+
+    .mini-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+      padding: 10px 12px;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px dashed var(--border);
+    }
+
+    .mini-item {
+      text-align: center;
+    }
+
+    .mini-label {
+      font-size: 0.72rem;
+      color: var(--text-sub);
+      margin-bottom: 2px;
+    }
+
+    .mini-val {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .result-box {
+      border-radius: 14px;
+      padding: 14px;
+      margin-top: 12px;
+    }
+
+    .result-box.blue {
+      background-color: var(--primary-light);
+      border: 1px solid var(--primary-border);
+    }
+
+    .result-box.green {
+      background-color: var(--emerald-light);
+      border: 1px solid var(--emerald-border);
+    }
+
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 6px 0;
+    }
+
+    .result-item:not(:last-child) {
+      border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+    }
+
+    .res-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+
+    .res-value {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .res-value.blue { color: var(--primary); }
+    .res-value.green { color: var(--emerald); }
+
+    .quick-tags {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-top: 10px;
+    }
+
+    .tag-btn {
+      padding: 7px 0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: #f1f5f9;
+      color: var(--text-sub);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .tag-btn:active {
+      background: #e2e8f0;
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+<body>
+
+<div id="toast">保存しました</div>
+
+<div class="container">
+  <header>
+    <h1>粗利・在庫シミュレーター</h1>
+    <div class="subtitle">期首在庫・売上・仕入からリアルタイム算出</div>
+  </header>
+
+  <!-- メモリ操作ボタン -->
+  <div class="memory-bar">
+    <button type="button" class="mem-btn" onclick="saveMemory()">💾 メモリ保存</button>
+    <button type="button" class="mem-btn" onclick="loadMemory()">📂 メモリ呼出</button>
+    <button type="button" class="mem-btn danger" onclick="resetAll()">🔄 全クリア</button>
+  </div>
+
+  <!-- 1. 基本入力 -->
+  <div class="card">
+    <div class="card-header">
+      <span>1. 実績・前提数値</span>
+    </div>
+
+    <div class="input-field">
+      <label class="field-label" for="beginningInventory">期首在庫額</label>
+      <div class="input-wrapper">
+        <input type="text" id="beginningInventory" value="0" inputmode="numeric" class="currency-input">
+        <span class="unit">円</span>
+      </div>
+    </div>
+
+    <div class="input-field">
+      <label class="field-label" for="sales">売上高</label>
+      <div class="input-wrapper">
+        <input type="text" id="sales" value="0" inputmode="numeric" class="currency-input">
+        <span class="unit">円</span>
+      </div>
+    </div>
+
+    <div class="input-field">
+      <label class="field-label" for="purchases">仕入金額</label>
+      <div class="input-wrapper">
+        <input type="text" id="purchases" value="0" inputmode="numeric" class="currency-input">
+        <span class="unit">円</span>
+      </div>
+    </div>
+
+    <div class="mini-summary">
+      <div class="mini-item">
+        <div class="mini-label">売上 - 仕入 (差益額)</div>
+        <div class="mini-val" id="grossDiff">¥0</div>
+      </div>
+      <div class="mini-item">
+        <div class="mini-label">差益率</div>
+        <div class="mini-val" id="grossDiffRate">0.00%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 目標利益率からの逆算 -->
+  <div class="card">
+    <div class="card-header">
+      <span>2. 目標利益率から逆算</span>
+      <span class="badge badge-blue">逆算モード</span>
+    </div>
+
+    <div class="input-field">
+      <label class="field-label" for="targetProfitRate">達成したい利益率 (±0.1%微調整可)</label>
+      <div class="stepper-group">
+        <button type="button" class="stepper-btn" onclick="stepTargetRate(-0.1)" aria-label="0.1%減らす">−</button>
+        <div class="input-wrapper">
+          <input type="number" id="targetProfitRate" value="0.0" step="0.1" inputmode="decimal">
+          <span class="unit">%</span>
+        </div>
+        <button type="button" class="stepper-btn" onclick="stepTargetRate(0.1)" aria-label="0.1%増やす">＋</button>
+      </div>
+    </div>
+
+    <div class="quick-tags">
+      <button type="button" class="tag-btn" onclick="setTargetRate(30)">30%</button>
+      <button type="button" class="tag-btn" onclick="setTargetRate(31)">31%</button>
+      <button type="button" class="tag-btn" onclick="setTargetRate(32)">32%</button>
+      <button type="button" class="tag-btn" onclick="setTargetRate(33)">33%</button>
+      <button type="button" class="tag-btn" onclick="setTargetRate(34)">34%</button>
+      <button type="button" class="tag-btn" onclick="setTargetRate(35)">35%</button>
+      <button type="button" class="tag-btn" onclick="setTargetRate(36)">36%</button>
+    </div>
+
+    <div class="result-box blue">
+      <div class="result-item">
+        <span class="res-label">必要期末在庫額</span>
+        <span class="res-value blue" id="neededEndingInventory">¥0</span>
+      </div>
+      <div class="result-item">
+        <span class="res-label">達成時の粗利額</span>
+        <span class="res-value blue" id="neededGrossProfit" style="font-size: 1.05rem;">¥0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 想定期末在庫額からの粗利予測 -->
+  <div class="card">
+    <div class="card-header">
+      <span>3. 期末在庫からの着地予測</span>
+      <span class="badge badge-green">着地予測</span>
+    </div>
+
+    <div class="input-field">
+      <label class="field-label" for="estEndingInventory">見込みの期末在庫額</label>
+      <div class="input-wrapper">
+        <input type="text" id="estEndingInventory" value="0" inputmode="numeric" class="currency-input">
+        <span class="unit">円</span>
+      </div>
+    </div>
+
+    <div class="result-box green">
+      <div class="result-item">
+        <span class="res-label">着地粗利額</span>
+        <span class="res-value green" id="calcGrossProfit">¥0</span>
+      </div>
+      <div class="result-item">
+        <span class="res-label">着地利益率</span>
+        <span class="res-value green" id="calcProfitRate">0.00%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const fmtYen = (val) => "¥" + Math.round(val).toLocaleString("ja-JP");
+  const fmtPct = (val) => (val).toFixed(2) + "%";
+
+  function parseVal(id) {
+    const raw = document.getElementById(id).value.replace(/,/g, "").trim();
+    return parseFloat(raw) || 0;
+  }
+
+  function setFormattedVal(id, numVal) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (numVal === 0) {
+      el.value = "0";
+    } else {
+      el.value = Number(numVal).toLocaleString("ja-JP");
+    }
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => {
+      toast.classList.remove("show");
+    }, 1800);
+  }
+
+  function calculate(autoSave = true) {
+    const beginningInv = parseVal("beginningInventory");
+    const sales = parseVal("sales");
+    const purchases = parseVal("purchases");
+
+    // 1. 差益
+    const diff = sales - purchases;
+    const diffRate = sales > 0 ? (diff / sales) * 100 : 0;
+    document.getElementById("grossDiff").textContent = fmtYen(diff);
+    document.getElementById("grossDiffRate").textContent = fmtPct(diffRate);
+
+    // 2. 目標利益率から逆算
+    const targetRate = parseFloat(document.getElementById("targetProfitRate").value) || 0;
+    const neededProfit = sales * (targetRate / 100);
+    const neededEndingInv = neededProfit - diff + beginningInv;
+    document.getElementById("neededEndingInventory").textContent = fmtYen(neededEndingInv);
+    document.getElementById("neededGrossProfit").textContent = fmtYen(neededProfit);
+
+    // 3. 想定在庫額から着地予測
+    const estInv = parseVal("estEndingInventory");
+    const calcProfit = diff - beginningInv + estInv;
+    const calcRate = sales > 0 ? (calcProfit / sales) * 100 : 0;
+    document.getElementById("calcGrossProfit").textContent = fmtYen(calcProfit);
+    document.getElementById("calcProfitRate").textContent = fmtPct(calcRate);
+
+    // 入力変更のたびにブラウザ自動保存
+    if (autoSave) {
+      persistCurrent();
+    }
+  }
+
+  // --- メモリ・ローカルストレージ関連 ---
+  const STORAGE_KEY_CURRENT = "profit_calc_current_state";
+  const STORAGE_KEY_SAVED   = "profit_calc_saved_state";
+
+  function getCurrentData() {
+    return {
+      beginningInv: parseVal("beginningInventory"),
+      sales: parseVal("sales"),
+      purchases: parseVal("purchases"),
+      targetRate: parseFloat(document.getElementById("targetProfitRate").value) || 0,
+      estInv: parseVal("estEndingInventory")
+    };
+  }
+
+  function applyData(data) {
+    if (!data) return;
+    setFormattedVal("beginningInventory", data.beginningInv ?? 0);
+    setFormattedVal("sales", data.sales ?? 0);
+    setFormattedVal("purchases", data.purchases ?? 0);
+    document.getElementById("targetProfitRate").value = (data.targetRate ?? 0).toFixed(1);
+    setFormattedVal("estEndingInventory", data.estInv ?? 0);
+    calculate(false);
+  }
+
+  function persistCurrent() {
+    try {
+      localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(getCurrentData()));
+    } catch(e) {}
+  }
+
+  // 手動保存 (M+)
+  function saveMemory() {
+    try {
+      localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(getCurrentData()));
+      showToast("数値をメモリに保存しました");
+    } catch(e) {
+      showToast("保存に失敗しました");
+    }
+  }
+
+  // メモリ呼出 (MR)
+  function loadMemory() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_SAVED);
+      if (!raw) {
+        showToast("保存されたデータがありません");
+        return;
+      }
+      applyData(JSON.parse(raw));
+      persistCurrent();
+      showToast("メモリから呼び出しました");
+    } catch(e) {
+      showToast("読込に失敗しました");
+    }
+  }
+
+  // 全クリア
+  function resetAll() {
+    if (!confirm("すべての数値を 0 にリセットしますか？")) return;
+    applyData({
+      beginningInv: 0,
+      sales: 0,
+      purchases: 0,
+      targetRate: 0.0,
+      estInv: 0
+    });
+    persistCurrent();
+    showToast("リセットしました");
+  }
+
+  // 入力制御
+  document.querySelectorAll(".currency-input").forEach(input => {
+    input.addEventListener("focus", (e) => {
+      if (e.target.value === "0") e.target.value = "";
+    });
+
+    input.addEventListener("blur", (e) => {
+      if (e.target.value.trim() === "") e.target.value = "0";
+    });
+
+    input.addEventListener("input", (e) => {
+      const rawDigits = e.target.value.replace(/\D/g, "");
+      e.target.value = rawDigits === "" ? "" : Number(rawDigits).toLocaleString("ja-JP");
+      calculate();
+    });
+  });
+
+  const targetInput = document.getElementById("targetProfitRate");
+  targetInput.addEventListener("focus", (e) => {
+    if (e.target.value === "0" || e.target.value === "0.0") e.target.value = "";
+  });
+  targetInput.addEventListener("blur", (e) => {
+    if (e.target.value.trim() === "") e.target.value = "0.0";
+  });
+  targetInput.addEventListener("input", () => calculate());
+
+  function stepTargetRate(delta) {
+    let current = parseFloat(targetInput.value) || 0;
+    let updated = Math.round((current + delta) * 10) / 10;
+    if (updated < 0) updated = 0;
+    targetInput.value = updated.toFixed(1);
+    calculate();
+  }
+
+  function setTargetRate(val) {
+    targetInput.value = Number(val).toFixed(1);
+    calculate();
+  }
+
+  // 起動時の初期化（前回のセッションがあれば自動復元）
+  window.addEventListener("DOMContentLoaded", () => {
+    try {
+      const lastSession = localStorage.getItem(STORAGE_KEY_CURRENT);
+      if (lastSession) {
+        applyData(JSON.parse(lastSession));
+      } else {
+        calculate(false);
+      }
+    } catch(e) {
+      calculate(false);
+    }
+  });
+</script>
+</body>
+</html>
